@@ -1,0 +1,8 @@
+.env
+.env.local
+*.log
+*.test
+tmp/
+bin/
+websocket-electric
+ws-server
