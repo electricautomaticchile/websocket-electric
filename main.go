@@ -37,6 +37,11 @@ func main() {
 	subCtx, cancelSub := context.WithCancel(context.Background())
 	go subscriber.Run(subCtx)
 
+	// Presencia global: cada instancia reporta su conteo local a Redis para
+	// poder sumar el total cuando hay varias instancias del WS Hub.
+	presence := NewPresence(redisClient)
+	go presence.Run(subCtx, hub)
+
 	wsHandler := NewWSHandler(hub, cfg)
 
 	mux := http.NewServeMux()
@@ -45,14 +50,19 @@ func main() {
 
 	// Health check para ALB / ECS.
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		payload := map[string]interface{}{
 			"status":    "ok",
 			"service":   "websocket-electric",
-			"clients":   hub.GetConnectedClients(),
+			"clients":   hub.GetConnectedClients(), // conexiones de esta instancia
 			"timestamp": time.Now().UTC(),
-		})
+		}
+		// Conteo global (todas las instancias) — best-effort.
+		if global, err := presence.GlobalCount(r.Context()); err == nil {
+			payload["clients_global"] = global
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(payload)
 	})
 
 	srv := &http.Server{
