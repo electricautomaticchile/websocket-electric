@@ -1,0 +1,33 @@
+name: Keep-alive (anti-sleep Render)
+
+# Mantiene "despierto" el servicio WebSocket en el plan free de Render, que se
+# duerme tras ~15 min de inactividad. Pinguea /health periódicamente.
+#
+# Nota: el cron de GitHub Actions puede retrasarse bajo carga; por eso se pide
+# cada 5 min (deja margen frente al corte de 15 min de Render). GitHub además
+# deshabilita los cron en repos sin actividad por 60 días — haz un commit o
+# re-activa el workflow si eso ocurre. Alternativa más fiable: UptimeRobot.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # cada 5 minutos
+  workflow_dispatch: {} # permite dispararlo a mano
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping WebSocket /health
+        run: |
+          code=$(curl -sS -m 30 -o /dev/null -w "%{http_code}" https://websocket-electric.onrender.com/health)
+          echo "WS /health -> HTTP $code"
+          test "$code" = "200"
+      - name: Ping API /health
+        run: |
+          code=$(curl -sSL -m 30 -o /dev/null -w "%{http_code}" https://api-electricautomaticchile.com/health)
+          echo "API /health -> HTTP $code"
+          test "$code" = "200"
