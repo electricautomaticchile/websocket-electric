@@ -21,13 +21,15 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      # Timeout de 90s: un cold start de Render Free puede tardar ~40-60s en
+      # levantar. Con -m 30 el ping se cortaba antes de despertar el servicio.
       - name: Ping WebSocket /health
         run: |
-          code=$(curl -sS -m 30 -o /dev/null -w "%{http_code}" https://websocket-electric.onrender.com/health)
+          code=$(curl -sS -m 90 --retry 2 --retry-all-errors -o /dev/null -w "%{http_code}" https://websocket-electric.onrender.com/health)
           echo "WS /health -> HTTP $code"
           test "$code" = "200"
       - name: Ping API /health
         run: |
-          code=$(curl -sSL -m 30 -o /dev/null -w "%{http_code}" https://api-electricautomaticchile.com/health)
+          code=$(curl -sSL -m 90 --retry 2 --retry-all-errors -o /dev/null -w "%{http_code}" https://api-electricautomaticchile.com/health)
           echo "API /health -> HTTP $code"
           test "$code" = "200"
